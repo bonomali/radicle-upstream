@@ -131,7 +131,8 @@ pub fn branches(repo_path: &str) -> Result<Vec<Branch>, Error> {
     let repo = surf::git::Repository::new(repo_path)?;
     let browser = surf::git::Browser::new(repo)?;
     let mut branches = browser
-        .list_branches(None)?
+        .list_branches(None)
+        .expect("Getting branches failed")
         .into_iter()
         .map(|b| Branch(b.name.name()))
         .collect::<Vec<Branch>>();

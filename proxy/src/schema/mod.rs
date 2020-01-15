@@ -1,4 +1,4 @@
-use juniper::{RootNode, ID};
+use juniper::{FieldResult, RootNode, ID};
 use std::str::FromStr;
 
 use librad::paths::Paths;
@@ -81,8 +81,10 @@ impl Query {
     }
 
     fn blob(ctx: &Context, id: ID, revision: String, path: String) -> Result<git::Blob, Error> {
-        let repo = surf::git::Repository::new(&ctx.dummy_repo_path)?;
-        let mut browser = surf::git::Browser::new(repo)?;
+        let repo =
+            surf::git::Repository::new(&ctx.dummy_repo_path).expect("setting up repo failed");
+        let mut browser =
+            surf::git::Browser::new(repo).expect("setting up browser for repo failed");
 
         // Best effort to guess the revision.
         if let Err(err) = browser
@@ -95,15 +97,15 @@ impl Query {
             return Err(Error::Git(surf::git::error::Error::NotBranch));
         };
 
-        let root = browser.get_directory()?;
+        let root = browser
+            .get_directory()
+            .expect("unable to get root directory");
 
         let mut p = surf::file_system::Path::from_str(&path)?;
 
-        let file = root.find_file(&p).ok_or_else(|| {
-            radicle_surf::file_system::error::Error::Path(
-                radicle_surf::file_system::error::Path::Empty,
-            )
-        })?;
+        let file = root
+            .find_file(&p)
+            .unwrap_or_else(|| panic!("unable to find file: {} -> {}", path, p));
 
         let mut commit_path = surf::file_system::Path::root();
         commit_path.append(&mut p);
@@ -132,10 +134,14 @@ impl Query {
         })
     }
 
-    fn commit(ctx: &Context, id: ID, sha1: String) -> Result<git::Commit, Error> {
-        let repo = surf::git::Repository::new(&ctx.dummy_repo_path)?;
-        let mut browser = surf::git::Browser::new(repo)?;
-        browser.commit(radicle_surf::vcs::git::Sha1::new(&sha1))?;
+    fn commit(ctx: &Context, id: ID, sha1: String) -> FieldResult<git::Commit> {
+        let repo =
+            surf::git::Repository::new(&ctx.dummy_repo_path).expect("setting up repo failed");
+        let mut browser =
+            surf::git::Browser::new(repo).expect("setting up browser for repo failed");
+        browser
+            .commit(radicle_surf::vcs::git::Sha1::new(&sha1))
+            .expect("setting commit failed");
 
         let history = browser.get_history();
         let commit = history.0.first();
@@ -151,10 +157,11 @@ impl Query {
         git::branches(&path)
     }
 
-    fn tags(ctx: &Context, id: ID) -> Result<Vec<git::Tag>, Error> {
-        let repo = surf::git::Repository::new(&ctx.dummy_repo_path)?;
-        let browser = surf::git::Browser::new(repo)?;
-        let mut tag_names = browser.list_tags()?;
+    fn tags(ctx: &Context, id: ID) -> FieldResult<Vec<git::Tag>> {
+        let repo =
+            surf::git::Repository::new(&ctx.dummy_repo_path).expect("setting up repo failed");
+        let browser = surf::git::Browser::new(repo).expect("setting up browser for repo failed");
+        let mut tag_names = browser.list_tags().expect("Getting branches failed");
         tag_names.sort();
 
         let mut tags: Vec<git::Tag> = tag_names
@@ -187,30 +194,32 @@ impl Query {
             surf::file_system::Path::from_str(&prefix)?
         };
 
-        let root_dir = browser.get_directory()?;
+        let root_dir = browser
+            .get_directory()
+            .expect("getting repo directory failed");
         let prefix_dir = if path.is_root() {
             root_dir
         } else {
-            root_dir.find_directory(&path).ok_or_else(|| {
-                radicle_surf::file_system::error::Error::Path(
-                    radicle_surf::file_system::error::Path::Empty,
+            root_dir.find_directory(&path).unwrap_or_else(|| {
+                panic!(
+                    "directory listing failed: {} -> {} | {:?}",
+                    path,
+                    path.is_root(),
+                    prefix,
                 )
-            })?
+            })
         };
         let mut prefix_contents = prefix_dir.list_directory();
         prefix_contents.sort();
 
-        let entries_results: Result<Vec<git::TreeEntry>, Error> = prefix_contents
+        let mut entries: Vec<git::TreeEntry> = prefix_contents
             .iter()
             .map(|(label, system_type)| {
                 let mut entry_path = if path.is_root() {
-                    let label_path =
-                        nonempty::NonEmpty::from_slice(&[label.clone()]).ok_or_else(|| {
-                            radicle_surf::file_system::error::Error::Label(
-                                radicle_surf::file_system::error::Label::Empty,
-                            )
-                        })?;
-                    surf::file_system::Path(label_path)
+                    surf::file_system::Path(
+                        nonempty::NonEmpty::from_slice(&[label.clone()])
+                            .expect("unable to create label slice"),
+                    )
                 } else {
                     let mut p = path.clone();
                     p.push(label.clone());
@@ -220,7 +229,8 @@ impl Query {
                 commit_path.append(&mut entry_path);
 
                 let last_commit = browser
-                    .last_commit(&commit_path)?
+                    .last_commit(&commit_path)
+                    .expect("last commit for file failed")
                     .map(|c| git::Commit::from(&c));
                 let info = git::Info {
                     name: label.to_string(),
@@ -231,14 +241,12 @@ impl Query {
                     last_commit,
                 };
 
-                Ok(git::TreeEntry {
+                git::TreeEntry {
                     info,
                     path: entry_path.to_string(),
-                })
+                }
             })
             .collect();
-
-        let mut entries = entries_results?;
 
         // We want to ensure that in the response Tree entries come first. `Ord` being derived on
         // the enum ensures Variant declaration order.
@@ -287,19 +295,17 @@ impl Query {
     }
 
     fn projects(ctx: &Context) -> Result<Vec<project::Project>, Error> {
-        let projects_results: Result<Vec<project::Project>, Error> =
-            librad::project::Project::list(&ctx.librad_paths)
-                .map(|id| {
-                    let project_meta = librad::project::Project::show(&ctx.librad_paths, &id)?;
+        let mut projects = librad::project::Project::list(&ctx.librad_paths)
+            .map(|id| {
+                let project_meta = librad::project::Project::show(&ctx.librad_paths, &id)
+                    .expect("unable to get project meta");
 
-                    Ok(project::Project {
-                        id: id.to_string().into(),
-                        metadata: project_meta.into(),
-                    })
-                })
-                .collect();
-
-        let mut projects = projects_results?;
+                project::Project {
+                    id: id.to_string().into(),
+                    metadata: project_meta.into(),
+                }
+            })
+            .collect::<Vec<project::Project>>();
 
         projects.sort_by(|a, b| a.metadata.name.cmp(&b.metadata.name));
 

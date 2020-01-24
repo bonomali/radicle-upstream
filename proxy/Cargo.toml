@@ -16,6 +16,7 @@ hex = "0.4"
 juniper = "0.14"
 juniper_codegen = "0.14"
 juniper_warp = "0.5"
+librad = { git = "https://github.com/radicle-dev/radicle-link.git", rev = "268a3c199fcf6c688e14626b97f08b0f4a080bc2" }
 log = "0.4"
 nonempty = "0.2"
 pico-args = "0.3"
@@ -28,16 +29,9 @@ tempfile = "3.1"
 url = "2.1"
 warp = "0.1"
 
-[dependencies.librad]
-git = "https://github.com/radicle-dev/radicle-link.git"
-rev = "0aa3fe0895c3e1b0cceef98ab27bcf1b2a669744"
-
 [dependencies.radicle-registry-client]
 git = "https://github.com/radicle-dev/radicle-registry.git"
 rev = "8689536f7e30d5e4839141658d2357e2cc550755"
-
-[dependencies.radicle-surf]
-version = "0.2"
 
 [dev-dependencies]
 indexmap = "1.3"

@@ -139,7 +139,7 @@ impl Registry {
             state: TransactionState::Applied(Applied {
                 block: juniper::ID::new(register_applied.block.to_string()),
             }),
-            timestamp: radicle_surf::git::git2::Time::new(
+            timestamp: librad::surf::git::git2::Time::new(
                 i64::try_from(
                     std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)?

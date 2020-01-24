@@ -2,8 +2,8 @@
 
 use juniper::{FieldError, IntoFieldError};
 use librad::meta::common::url;
-use radicle_surf as surf;
-use radicle_surf::git::git2;
+use librad::surf;
+use librad::surf::git::git2;
 use std::time::SystemTimeError;
 
 use radicle_registry_client::{DispatchError, Error as ProtocolError};
@@ -21,7 +21,7 @@ pub enum ProjectValidation {
 #[derive(Debug)]
 pub enum Error {
     /// FileSystem errors from interacting with code in repository.
-    FS(radicle_surf::file_system::error::Error),
+    FS(surf::file_system::error::Error),
     /// Originated from `radicle_surf`.
     Git(surf::git::error::Error),
     /// Originated from `radicle_surf::git::git2`.
@@ -48,8 +48,8 @@ pub enum Error {
     Time(SystemTimeError),
 }
 
-impl From<radicle_surf::file_system::error::Error> for Error {
-    fn from(fs_error: radicle_surf::file_system::error::Error) -> Self {
+impl From<surf::file_system::error::Error> for Error {
+    fn from(fs_error: surf::file_system::error::Error) -> Self {
         Self::FS(fs_error)
     }
 }
@@ -127,15 +127,15 @@ impl From<SystemTimeError> for Error {
 }
 
 /// Helper to convert `radicle_surf` `FileSystem` error to `FieldError`.
-fn convert_fs(error: &radicle_surf::file_system::error::Error) -> FieldError {
+fn convert_fs(error: &surf::file_system::error::Error) -> FieldError {
     let error_str = match &error {
-        radicle_surf::file_system::error::Error::Label(label_error) => match label_error {
-            radicle_surf::file_system::error::Label::ContainsSlash => "Label contains slashes",
-            radicle_surf::file_system::error::Label::Empty => "Label is empty",
-            radicle_surf::file_system::error::Label::InvalidUTF8 => "Label is not valid utf8",
+        surf::file_system::error::Error::Label(label_error) => match label_error {
+            surf::file_system::error::Label::ContainsSlash => "Label contains slashes",
+            surf::file_system::error::Label::Empty => "Label is empty",
+            surf::file_system::error::Label::InvalidUTF8 => "Label is not valid utf8",
         },
-        radicle_surf::file_system::error::Error::Path(path_error) => match path_error {
-            radicle_surf::file_system::error::Path::Empty => "Path is empty",
+        surf::file_system::error::Error::Path(path_error) => match path_error {
+            surf::file_system::error::Path::Empty => "Path is empty",
         },
     };
 
@@ -178,6 +178,12 @@ fn convert_git(error: &surf::git::error::Error) -> FieldError {
                 "type": "GIT_NOT_TAG"
             }),
         ),
+        surf::git::error::Error::RevParseFailure => FieldError::new(
+            "Failed to parse the revspec provided.",
+            graphql_value!({
+                "type": "GIT_REVPARSE_FAILURE"
+            }),
+        ),
         surf::git::error::Error::Utf8Error(_utf8_error) => FieldError::new(
             "String conversion error",
             graphql_value!({
@@ -213,6 +219,12 @@ fn convert_git2(error: &git2::Error) -> FieldError {
 /// Helper to convert `librad::git::Error` to `FieldError`.
 fn convert_librad_git(error: &librad::git::Error) -> FieldError {
     match error {
+        librad::git::Error::MissingDefaultBranch(branch, _git2_error) => FieldError::new(
+            format!("Missing Default Branch: {}", branch),
+            graphql_value!({
+                "type": "LIBRAD_MISSING_DEFAULT_BRANCH"
+            }),
+        ),
         librad::git::Error::MissingPgpAddr => FieldError::new(
             "Missing PGP address.",
             graphql_value!({

@@ -5,8 +5,8 @@ use std::hash::{Hash, Hasher};
 
 use librad::meta::common::Url;
 use librad::paths::Paths;
-use radicle_surf as surf;
-use radicle_surf::git::git2;
+use librad::surf;
+use librad::surf::git::git2;
 
 use crate::schema::error::Error;
 
@@ -84,6 +84,15 @@ pub enum ObjectType {
     Blob,
 }
 
+impl From<surf::file_system::SystemType> for ObjectType {
+    fn from(system_type: surf::file_system::SystemType) -> Self {
+        match system_type {
+            surf::file_system::SystemType::Directory => Self::Tree,
+            surf::file_system::SystemType::File => Self::Blob,
+        }
+    }
+}
+
 /// Set of extra information we carry for blob and tree objects returned from the API.
 #[derive(GraphQLObject)]
 pub struct Info {
@@ -133,7 +142,7 @@ pub fn branches(repo_path: &str) -> Result<Vec<Branch>, Error> {
     let mut branches = browser
         .list_branches(None)?
         .into_iter()
-        .map(|b| Branch(b.name.name()))
+        .map(|b| Branch(b.name.name().to_string()))
         .collect::<Vec<Branch>>();
 
     branches.sort();
@@ -141,7 +150,7 @@ pub fn branches(repo_path: &str) -> Result<Vec<Branch>, Error> {
     Ok(branches)
 }
 
-/// Initialize a [`librad::Project`] in the location of the given `path`.
+/// Initialize a [`librad::meta::Project`] in the location of the given `path`.
 pub fn init_project(
     librad_paths: &Paths,
     path: &str,
@@ -166,7 +175,7 @@ pub fn init_project(
     Ok((id, meta))
 }
 
-/// Initialize a [`git2::GitRepository`] at the given path.
+/// Initialize a `GitRepository` at the given path.
 pub fn init_repo(path: String) -> Result<(), Error> {
     let repo = git2::Repository::init(path)?;
 
@@ -188,7 +197,7 @@ pub fn init_repo(path: String) -> Result<(), Error> {
     Ok(())
 }
 
-/// Creates a small set of projects in [`librad::Paths`].
+/// Creates a small set of projects in [`librad::paths::Paths`].
 pub fn setup_fixtures(librad_paths: &Paths, root: &str) -> Result<(), Error> {
     let infos = vec![
             (

@@ -2,8 +2,8 @@ use juniper::{RootNode, ID};
 use std::str::FromStr;
 
 use librad::paths::Paths;
+use librad::surf;
 use radicle_registry_client::ed25519;
-use radicle_surf as surf;
 
 /// Error definitions and type casting logic.
 mod error;
@@ -109,24 +109,14 @@ impl Query {
         let mut browser = surf::git::Browser::new(repo)?;
 
         // Best effort to guess the revision.
-        if let Err(err) = browser
-            .branch(surf::git::BranchName::new(&revision))
-            .or(browser.commit(surf::git::Sha1::new(&revision)))
-            .or(browser.tag(surf::git::TagName::new(&revision)))
-        {
-            let err_fmt = format!("{:?}", err);
-
-            return Err(Error::Git(surf::git::error::Error::NotBranch));
-        };
+        browser.revspec(&revision)?;
 
         let root = browser.get_directory()?;
 
         let mut p = surf::file_system::Path::from_str(&path)?;
 
         let file = root.find_file(&p).ok_or_else(|| {
-            radicle_surf::file_system::error::Error::Path(
-                radicle_surf::file_system::error::Path::Empty,
-            )
+            surf::file_system::error::Error::Path(surf::file_system::error::Path::Empty)
         })?;
 
         let mut commit_path = surf::file_system::Path::root();
@@ -149,7 +139,7 @@ impl Query {
             binary,
             content,
             info: git::Info {
-                name: last.label,
+                name: last.to_string(),
                 object_type: git::ObjectType::Blob,
                 last_commit,
             },
@@ -159,12 +149,9 @@ impl Query {
     fn commit(ctx: &Context, id: ID, sha1: String) -> Result<git::Commit, Error> {
         let repo = surf::git::Repository::new(&ctx.dummy_repo_path)?;
         let mut browser = surf::git::Browser::new(repo)?;
-        browser.commit(radicle_surf::vcs::git::Sha1::new(&sha1))?;
+        browser.commit(surf::vcs::git::Oid::from_str(&sha1)?)?;
 
-        let history = browser.get_history();
-        let commit = history.0.first();
-
-        Ok(git::Commit::from(commit))
+        Ok(git::Commit::from(browser.get().first()))
     }
 
     fn branches(ctx: &Context, id: ID) -> Result<Vec<git::Branch>, Error> {
@@ -183,7 +170,7 @@ impl Query {
 
         let mut tags: Vec<git::Tag> = tag_names
             .into_iter()
-            .map(|tag_name| git::Tag(tag_name.name()))
+            .map(|tag_name| git::Tag(tag_name.name().to_string()))
             .collect();
 
         tags.sort();
@@ -195,15 +182,7 @@ impl Query {
         let repo = surf::git::Repository::new(&ctx.dummy_repo_path)?;
         let mut browser = surf::git::Browser::new(repo)?;
 
-        if let Err(err) = browser
-            .branch(surf::git::BranchName::new(&revision))
-            .or(browser.commit(surf::git::Sha1::new(&revision)))
-            .or(browser.tag(surf::git::TagName::new(&revision)))
-        {
-            let err_fmt = format!("{:?}", err);
-
-            return Err(Error::Git(surf::git::error::Error::NotBranch));
-        };
+        browser.revspec(&revision)?;
 
         let mut path = if prefix == "/" || prefix == "" {
             surf::file_system::Path::root()
@@ -216,13 +195,11 @@ impl Query {
             root_dir
         } else {
             root_dir.find_directory(&path).ok_or_else(|| {
-                radicle_surf::file_system::error::Error::Path(
-                    radicle_surf::file_system::error::Path::Empty,
-                )
+                surf::file_system::error::Error::Path(surf::file_system::error::Path::Empty)
             })?
         };
-        let mut prefix_contents = prefix_dir.list_directory();
-        prefix_contents.sort();
+
+        let prefix_contents = prefix_dir.list_directory();
 
         let entries_results: Result<Vec<git::TreeEntry>, Error> = prefix_contents
             .iter()
@@ -230,8 +207,8 @@ impl Query {
                 let mut entry_path = if path.is_root() {
                     let label_path =
                         nonempty::NonEmpty::from_slice(&[label.clone()]).ok_or_else(|| {
-                            radicle_surf::file_system::error::Error::Label(
-                                radicle_surf::file_system::error::Label::Empty,
+                            surf::file_system::error::Error::Label(
+                                surf::file_system::error::Label::Empty,
                             )
                         })?;
                     surf::file_system::Path(label_path)
@@ -248,10 +225,7 @@ impl Query {
                     .map(|c| git::Commit::from(&c));
                 let info = git::Info {
                     name: label.to_string(),
-                    object_type: match system_type {
-                        surf::file_system::SystemType::Directory => git::ObjectType::Tree,
-                        surf::file_system::SystemType::File => git::ObjectType::Blob,
-                    },
+                    object_type: git::ObjectType::from(system_type.clone()),
                     last_commit,
                 };
 
@@ -271,7 +245,7 @@ impl Query {
         entries.sort_by(|a, b| a.info.object_type.cmp(&b.info.object_type));
 
         let last_commit = if path.is_root() {
-            Some(git::Commit::from(browser.get_history().0.first()))
+            Some(git::Commit::from(browser.get().first()))
         } else {
             let mut commit_path = surf::file_system::Path::root();
             commit_path.append(&mut path);
@@ -284,7 +258,7 @@ impl Query {
             "".into()
         } else {
             let (_first, last) = path.split_last();
-            last.label
+            last.to_string()
         };
         let info = git::Info {
             name,
@@ -377,8 +351,8 @@ mod tests {
     mod mutation {
         use indexmap::IndexMap;
         use juniper::{InputValue, Variables};
+        use librad::surf::git::git2;
         use pretty_assertions::assert_eq;
-        use radicle_surf::git::git2;
 
         use super::{execute_query, with_fixtures};
 

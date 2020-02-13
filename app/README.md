@@ -69,10 +69,13 @@ used.
 
 #### File structure
 
-To be able to find code and make changes quickly we organize our components in
-groups defined by use-case, re-usability and complexity. These groups are:
+In Svelte everything is a component, but to be able to build a complex
+application and still be able to navigate the code and make changes quickly we
+organize our components in groups defined by use-case, re-usability and
+complexity. Currently you'll find the following groups in the `DesignSystem`
+directory:
 
-  - `DesignSystem/Primitives`: simple, yet highly reusable components like
+  - `Primitives`: simple, yet highly reusable components like
     typography, buttons, form elements, spacing, positioning and other
     utilities.
 
@@ -95,7 +98,7 @@ groups defined by use-case, re-usability and complexity. These groups are:
     ergonomics.
 
     All public primitives are exported via a central `index.js` file, which
-    makes usage as easy as:
+    makes consumption straightforward:
 
     ```
     <script>
@@ -107,25 +110,20 @@ groups defined by use-case, re-usability and complexity. These groups are:
     <Text variant="hugeTitle">Radicle</Text>
     ```
 
-
-  - `DesignSystem/Components`: reusable low-to-high complexity components,
-    layouts and single-use fragments which are extracted from screens or other
-    components for the sake of code readability.
+  - `Components`: reusable low-to-high complexity components and layouts.
 
     Sub-folders in this category should only be created for breaking up larger
     components into smaller fragments. If a component is broken up in
-    fragments, make sure to only export the component for public use, not the
-    fragments.
+    fragments, make sure to only export the component which is intended for
+    public use.
 
-    Single-use components that are extracted from screens and used by only one
-    screen should be prefixed with the name of the screen, for example:
-    `DesignSystemGuideSection.svelte`.
 
-`Screens` bring together components from the Design System forming what a user
-in the UI sees as a whole screen. More complex screens can be broken down into
-multiple fragments, in this case a screen contains data fetching and routing
-logic for the partials. Partials should be placed in a directory named after
-the screen.
+Next to `DesignSystem`, you'll find a directory called `Screens`. Screens bring
+together components from the Design System forming what a user in the UI sees
+as a whole screen. More complex screens can be broken down into multiple
+fragments, in this case the screen will contain data fetching and routing logic
+for the fragments. Fragments should be placed in a directory named after the
+screen.
 
 When multiple screens share the same layout, it should be extracted into a
 separate component. Layout components are suffixed with "Layout", like so:
@@ -156,10 +154,10 @@ File and directory name casing:
 │       └── index.js
 ├── Screens
 │   ├── Profile.svelte             # Simple screen
-│   ├── Project                    # Project sub-screens
+│   ├── Project                    # Project screen fragments
 │   │   ├── Feed.svelte
 │   │   └── Source.svelte
-│   ├── Project.svelte             # Data fetching and routing for project sub-screens
+│   ├── Project.svelte             # Data fetching and routing for project fragments
 │   └── Wallet.svelte
 ├── config.js                      # Configuration constants
 ├── index.js                       # UI entry-point, loaded by the main renderer

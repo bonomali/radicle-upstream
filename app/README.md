@@ -121,12 +121,11 @@ groups defined by use-case, re-usability and complexity. These groups are:
     screen should be prefixed with the name of the screen, for example:
     `DesignSystemGuideSection.svelte`.
 
-
-There is a third group of components, which is not part of the Design System:
-"Screens". Screens bring together components from the Design System forming
-what a user sees in the UI as a whole screen. More complex UX flows can be
-broken down into multiple sub-screens, in this case a top-level screen should
-contain common data fetching and routing for the sub-screens.
+`Screens` bring together components from the Design System forming what a user
+in the UI sees as a whole screen. More complex screens can be broken down into
+multiple fragments, in this case a screen contains data fetching and routing
+logic for the partials. Partials should be placed in a directory named after
+the screen.
 
 When multiple screens share the same layout, it should be extracted into a
 separate component. Layout components are suffixed with "Layout", like so:

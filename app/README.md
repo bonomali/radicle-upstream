@@ -61,16 +61,17 @@ one page within the app UI by pressing <kbd>shift</kbd> + <kbd>D</kbd>. This
 will bring up the Design System Guide modal. To close the modal, hit
 <kbd>ESC</kbd>.
 
-The purpose of the Guide is to be able to see how changes to components affect
-all variations in one glance. Newly created components should be added to the
-Guide, explaining all the different variations and use cases a component can be
-used.
+The purpose of the Design System Guide is to showcase all available primitives
+and components. Having them all on a single screen allows us to see how changes
+to components affect all variations at a glance. Therefore newly created
+components should be added to the Guide, explaining all the different
+variations and use cases.
 
 
 #### File structure
 
-In Svelte everything is a component, but to be able to build a complex
-application and still be able to navigate the code and make changes quickly we
+In Svelte everything is a component, so to be able to build a complex
+application and still be able to navigate the code and make changes quickly, we
 organize our components in groups defined by use-case, re-usability and
 complexity. Currently you'll find the following groups in the `DesignSystem`
 directory:
